@@ -561,20 +561,6 @@ class robot:
             :param abs_frame: A list of [X Y Z Roll Pitch Yaw] OR a tfx.canonical.CanonicalTransform class 
             :param Speed: Should be a (float) type -> Implements linear slerp interpolation 
         """
-        rospy.loginfo(rospy.get_caller_id() + ' -> starting absolute move cartesian SLERP')
-        if (self.__check_input_type(abs_frame, [tfx.canonical.CanonicalTransform,list,float])):
-            if (isinstance(abs_frame, tfx.canonical.CanonicalTransform)):
-                # Checks for abs_frame as a tfx pose
-                # Converts to abs_frame as a list
-                abs_frame = self.__tfx_to_list(abs_frame)
-        else:
-            # User did not provide valid arguments to process
-            print "Invalid type for abs_frame; should be of type list or tfx pose and not type " + str(type(abs_frame))
-            return False
-
-        if (not self.__check_input_type(speed, [int,float])):
-            return False
-
         self.__move_cartesian_SLERP(abs_frame, speed)
         rospy.loginfo(rospy.get_caller_id() + ' -> completing absolute move cartesian SLERP')
 
@@ -608,20 +594,23 @@ class robot:
 
         """:returns: None type"""
         interval = 0.0001        # 1 step per X m of distance
-        startFrame = self.get_current_cartesian_position()
-        startRPY = list(startFrame.M.GetRPY()); startVect = list(startFrame.p);
-        start_pose = startVect + startRPY
+        start_pose = self.get_current_cartesian_position()
+        start_vect = [start_pose.position.x, start_pose.position.y, start_pose.position.z,
+                      start_pose.tb_angles.roll_rad, start_pose.tb_angles.pitch_rad, start_pose.tb_angles.yaw_rad]
 
-        endVect = np.array([abs_frame[0], abs_frame[1], abs_frame[2]])     # Array of [X Y Z]
-        displacement = endVect - np.array(startVect)                       # Displacement vector
+        end_vect = [abs_frame.position.x, abs_frame.position.y, abs_frame.position.z,
+                    abs_frame.tb_angles.roll_rad, abs_frame.tb_angles.pitch_rad, abs_frame.tb_angles.yaw_rad]
+
+
+        displacement = np.array(end_vect) - np.array(start_vect)                       # Displacement vector
         Tinterval = int(np.linalg.norm(displacement) /interval)               # Total interval present between start and end poses
 
         for ii in range(Tinterval):
-            track = linear_pose_interp(start_pose, abs_frame, (ii +1.0)/Tinterval)
+            track = linear_pose_interp(start_vect, end_vect, (ii +1.0)/Tinterval)
             lin = track['lin'];     quat = track['rot'];     # In the form [w x y z]
             vect = Vector(lin[0], lin[1], lin[2])
             rot = Rotation.Quaternion(quat[1], quat[2], quat[3], quat[0])  # function accepts the form (x, y, z, w)
-            frame = Frame(rot, vect)
+            frame = Frame(rot, vect)    
             self.move_cartesian_frame(frame, interpolate = False)
 
             Tval = self.__get_time_interval(interval, speed)

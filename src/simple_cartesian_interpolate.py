@@ -37,16 +37,17 @@ from robot import *
 
 def Interpolate(robotname):
     R = robot(robotname)
-    start_frame = [0.0447258528045, 0.0512065150661, -0.131469281192, -2.5396399475337668, -0.2903344173204437, 0.18226904308086755]      # Starting position in [X Y Z Roll Pitch Yaw]
-    end_frame = [-0.0447258528045, 0.0512065150661, -0.131469281192, -2.5396399475337668, -0.2903344173204437, 0.18226904308086755]	  # Ending position in [X Y Z Roll Pitch Yaw]
+    
+    # poses in the workspace
+    # start_frame = [0.0447258528045, 0.0512065150661, -0.131469281192, -2.5396399475337668, -0.2903344173204437, 0.18226904308086755]      # Starting position in [X Y Z Roll Pitch Yaw]
+    # end_frame = [-0.0447258528045, 0.0512065150661, -0.131469281192, -2.5396399475337668, -0.2903344173204437, 0.18226904308086755]	  # Ending position in [X Y Z Roll Pitch Yaw]
 
-    start_Vect = np.array([start_frame[0],start_frame[1],start_frame[2]])
-    end_Vect = np.array([end_frame[0],end_frame[1],end_frame[2]])
-    print "Norm: ", np.linalg.norm(end_Vect - start_Vect)				# Computes the norm of the vector between the start and end points
+    r = tfx.rotation_tb(0.0, 0.0, 0.0)
+    start_pose = tfx.pose([0.04, 0.0, -0.1], r)
+    end_pose = tfx.pose([-0.04, 0, -0.1], r)
 
-    R.move_cartesian_frame_linear_interpolation(start_frame, 0.03)     # (abs_frame, speed)
-    time.sleep(1)
-    R.move_cartesian_frame_linear_interpolation(end_frame, 0.03)       # (abs_frame, speed)
+    R.move_cartesian_frame_linear_interpolation(start_pose, 0.01)     # (abs_frame, speed)
+    R.move_cartesian_frame_linear_interpolation(end_pose, 0.01)       # (abs_frame, speed)
 
 
 if __name__ == '__main__':

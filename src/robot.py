@@ -609,6 +609,7 @@ class robot:
         """:returns: None type"""
         interval = 0.0001        # 1 step per X m of distance
         startFrame = self.get_current_cartesian_position()
+        print type(startFrame)
         startRPY = list(startFrame.M.GetRPY()); startVect = list(startFrame.p);
         start_pose = startVect + startRPY
 

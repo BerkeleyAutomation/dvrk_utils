@@ -67,7 +67,7 @@ import logging
 import time
 import inspect
 import code
-import IPython
+# import IPython
 import math
 import numpy as np
 import tfx

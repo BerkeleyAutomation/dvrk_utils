@@ -35,6 +35,7 @@ import time
 import numpy as np
 import robot
 import sys
+import tfx
 
 def Interpolate(robotname):
     r = robot.robot(robotname)
@@ -42,8 +43,8 @@ def Interpolate(robotname):
     start_pose = r.get_current_cartesian_position()
     pose1 = r.get_current_cartesian_position()
     pose1.position.x -= 0.01
+    pose1 = tfx.pose(pose1.as_tf()*tfx.transform(tfx.rotation_tb(0, 0.000001, 0)))
 
-    import IPython; IPython.embed()
 
     r.move_cartesian_frame_linear_interpolation(start_pose, 0.01)
     r.move_cartesian_frame_linear_interpolation(pose1, 0.01)
@@ -57,6 +58,7 @@ if __name__ == '__main__':
     """ Expected inputs are robot's arm """
 
     if (len(sys.argv) == 2):
+        raw_input("The dvrk arm will now move. Please ensure that there not obstacles in a 1cm cube around the arm. Press any key to continue")
         Interpolate(sys.argv[1])
     else:
         print sys.argv[0] + ' requires one argument, i.e. name of dVRK arm'

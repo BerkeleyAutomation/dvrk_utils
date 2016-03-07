@@ -33,21 +33,23 @@ the coordinates at a uniform speed. As of now, no cubic interpolation function h
 
 import time
 import numpy as np
-from robot import *
+import robot
+import sys
 
 def Interpolate(robotname):
-    R = robot(robotname)
-    
-    # poses in the workspace
-    # start_frame = [0.0447258528045, 0.0512065150661, -0.131469281192, -2.5396399475337668, -0.2903344173204437, 0.18226904308086755]      # Starting position in [X Y Z Roll Pitch Yaw]
-    # end_frame = [-0.0447258528045, 0.0512065150661, -0.131469281192, -2.5396399475337668, -0.2903344173204437, 0.18226904308086755]	  # Ending position in [X Y Z Roll Pitch Yaw]
+    r = robot.robot(robotname)
 
-    r = tfx.rotation_tb(0.0, 0.0, 0.0)
-    start_pose = tfx.pose([0.04, 0.0, -0.1], r)
-    end_pose = tfx.pose([-0.04, 0, -0.1], r)
+    start_pose = r.get_current_cartesian_position()
+    pose1 = r.get_current_cartesian_position()
+    pose1.position.x -= 0.01
 
-    R.move_cartesian_frame_linear_interpolation(start_pose, 0.01)     # (abs_frame, speed)
-    R.move_cartesian_frame_linear_interpolation(end_pose, 0.01)       # (abs_frame, speed)
+    import IPython; IPython.embed()
+
+    r.move_cartesian_frame_linear_interpolation(start_pose, 0.01)
+    r.move_cartesian_frame_linear_interpolation(pose1, 0.01)
+    r.move_cartesian_frame_linear_interpolation(start_pose, 0.01)
+
+
 
 
 if __name__ == '__main__':

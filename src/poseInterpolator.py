@@ -13,6 +13,9 @@ from numpy import array
 from math import pi, cos, sin, acos, asin
 from PyKDL import *
 
+# TODO: remove methods that aren't being used
+# TODO: cite who wrote external methods
+
 
 def mat2euler(M, cy_thresh=None):
     ''' Discover Euler angle vector from 3x3 matrix
@@ -157,6 +160,10 @@ def linear_pose_interp(start_A, end_B, T):
     # track['rot'] - Intermediate Yaw-Pitch-Roll poses of interval T, in sequence YPR
 
     '''
+
+    # TODO: Update docstring
+    # TODO: should return a tfx pose
+    # TODO: use tfx interpolate function - this means this method might not be needed 
 
     track = {'lin': [], 'rot': []}
 

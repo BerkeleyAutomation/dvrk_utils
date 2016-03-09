@@ -535,6 +535,7 @@ class robot:
             self.move_cartesian_frame(abs_frame, interpolate)
             rospy.loginfo(rospy.get_caller_id() + ' -> completing absolute move cartesian rotation')
 
+    # TODO: Aceept only tfx poses as input 
     def move_cartesian_frame(self, abs_frame, interpolate=True):
         """Absolute move by Frame in cartesian plane.
 
@@ -555,6 +556,7 @@ class robot:
                 self.__move_cartesian_direct(abs_frame)
             rospy.loginfo(rospy.get_caller_id() + ' -> completing absolute move cartesian frame')
 
+    # TODO: just put __move_cartesian_SLERP code inside this method + update doc string
     def move_cartesian_frame_linear_interpolation(self, abs_frame, speed):
         """ Linear interpolation of frame using SLERP.
             
@@ -564,6 +566,7 @@ class robot:
         self.__move_cartesian_SLERP(abs_frame, speed)
         rospy.loginfo(rospy.get_caller_id() + ' -> completing absolute move cartesian SLERP')
 
+
     def __frame_to_tfxPose(self, frame):
         """ Function converts a PyKDL Frame object to a tfx object """
         """ We convert a PyKDL.Frame object to a ROS posemath object and then reconvert it to a tfx.canonical.CanonicalTransform object """
@@ -572,6 +575,7 @@ class robot:
         rosMsg = posemath.toMsg(frame)
         return tfx.canonical.transform(rosMsg)
 
+    # TODO: this method shouldn't be removed
     def __tfx_to_list(self, tfx_frame):
         """ Function converts a tfx.canonical.CanonicalTransform object to a List"""
 
@@ -588,6 +592,8 @@ class robot:
         """:returns: PyKDL.Frame type"""
         return posemath.fromMsg(tfx_frame)
 
+
+    # TODO: move this code into the method that calls it
     def __move_cartesian_SLERP(self, abs_frame, speed):
         """ To implement SLERP interpolation from current position to specified position"""
         """ This is a wrapper function around move_cartesian_frame with interpolate = False"""
@@ -596,16 +602,22 @@ class robot:
         interval = 0.0001        # 1 step per X m of distance
 
         start_pose = self.get_current_cartesian_position()
+
+        # TODO: don't convert to list
         start_vect = [start_pose.position.x, start_pose.position.y, start_pose.position.z,
                       start_pose.tb_angles.roll_rad, start_pose.tb_angles.pitch_rad, start_pose.tb_angles.yaw_rad]
 
         end_vect = [abs_frame.position.x, abs_frame.position.y, abs_frame.position.z,
                     abs_frame.tb_angles.roll_rad, abs_frame.tb_angles.pitch_rad, abs_frame.tb_angles.yaw_rad]
 
-        # import IPython; IPython.embed()
+        # TODO: make sure there min and max values for your Tinterval
         displacement = np.array(end_vect[:3]) - np.array(start_vect[:3])                       # Displacement vector
+        
+        # TODO: don't start variable names with capital letters and use underscore notation for variable names
+        # TODO: check pep8 style guide: https://www.python.org/dev/peps/pep-0008/
         Tinterval = int(np.linalg.norm(displacement) /interval)               # Total interval present between start and end poses
 
+        # TODO: use i not ii
         for ii in range(Tinterval):
             track = linear_pose_interp(start_vect, end_vect, (ii +1.0)/Tinterval)
             lin = track['lin'];     quat = track['rot'];     # In the form [w x y z]

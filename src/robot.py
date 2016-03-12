@@ -67,7 +67,6 @@ import logging
 import time
 import inspect
 import code
-# import IPython
 import math
 import numpy as np
 import tfx
@@ -81,7 +80,6 @@ from geometry_msgs.msg import Vector3
 from geometry_msgs.msg import Quaternion
 from sensor_msgs.msg import JointState
 from math import pi
-from poseInterpolator import linear_pose_interp, quat2euler
 
 from code import InteractiveConsole
 from imp import new_module
@@ -255,7 +253,7 @@ class robot:
         """Gets the :ref:`current cartesian position <currentvdesired>` of the robot in terms of cartesian space.
 
         :returns: the current position of the robot in cartesian space
-        :rtype: `PyKDL.Frame <http://docs.ros.org/diamondback/api/kdl/html/python/geometric_primitives.html>`_"""
+        :rtype: tfx.canonical.CanonicalTransform object"""
         current_Frame = self.__position_cartesian_current
         return self.__frame_to_tfxPose(current_Frame)
 
@@ -284,7 +282,7 @@ class robot:
         """Get the :ref:`desired cartesian position <currentvdesired>` of the robot in terms of caretsian space.
 
         :returns: the desired position of the robot in cartesian space
-        :rtype: `PyKDL.Frame <http://docs.ros.org/diamondback/api/kdl/html/python/geometric_primitives.html>`_"""
+        :rtype: tfx.canonical.CanonicalTransform object"""
         desired_Frame = self.__position_cartesian_desired
         return self.__frame_to_tfxPose(desired_Frame)
 
@@ -397,11 +395,13 @@ class robot:
         self.__goal_reached_event.wait(20) # 1 minute at most
         if not self.__goal_reached: print 'Jaw not fully closed'
 
-    def open_gripper(self, degree=None):
-        "Open the arm gripper"
-        if degree == None: 
-            print 'Angle for jaw not specified'
-            return False
+    def open_gripper(self, degree):
+        """Open the arm gripper
+
+        :param degree: the degree to open the gripper in degrees
+        """
+        if not degree > 0 and degree <= 360:
+            raise Exception("Invalid value for degree: current value is {0}".format(degree))
         if (not self.__dvrk_set_state('DVRK_POSITION_GOAL_CARTESIAN')):
             return False
         self.__goal_reached_event.clear()
@@ -535,100 +535,61 @@ class robot:
             self.move_cartesian_frame(abs_frame, interpolate)
             rospy.loginfo(rospy.get_caller_id() + ' -> completing absolute move cartesian rotation')
 
-    # TODO: Aceept only tfx poses as input 
+    # DONE: Aceept only tfx poses as input 
     def move_cartesian_frame(self, abs_frame, interpolate=True):
         """Absolute move by Frame in cartesian plane.
 
-        :param abs_frame: the absolute 'tfx.canonical.CanonicalTransform' class OR `PyKDL.Rotation <http://docs.ros.org/diamondback/api/kdl/html/python/geometric_primitives.html>`_
+        :param abs_frame: abs_frame as a tfx.canonical.CanonicalTransform
         :param interpolate: see  :ref:`interpolate <interpolate>`"""
         rospy.loginfo(rospy.get_caller_id() + ' -> starting absolute move cartesian frame')
-        if (self.__check_input_type(abs_frame, [Frame, tfx.canonical.CanonicalTransform])):
-            if (isinstance(abs_frame, tfx.canonical.CanonicalTransform)):
-                # Checks for abs_frame as a tfx pose
-                # Converts to abs_frame as a list
-                abs_frame = self.__tfx_to_frame(abs_frame)
-                print abs_frame
 
-            #move based on value of interpolate
-            if (interpolate):
-                self.__move_cartesian_goal(abs_frame)
-            else:
-                self.__move_cartesian_direct(abs_frame)
-            rospy.loginfo(rospy.get_caller_id() + ' -> completing absolute move cartesian frame')
+        # Checks for abs_frame as a tfx pose
+        if not isinstance(abs_frame, tfx.canonical.CanonicalTransform):
+            raise Exception("abs_frame must be a tfx.canonical.CanonicalTransform object")
+            # move based on value of interpolate
+        if (interpolate):
+            self.__move_cartesian_goal(abs_frame)
+        else:
+            self.__move_cartesian_direct(abs_frame)
+        rospy.loginfo(rospy.get_caller_id() + ' -> completing absolute move cartesian frame')
 
-    # TODO: just put __move_cartesian_SLERP code inside this method + update doc string
+    # DONE: just put __move_cartesian_SLERP code inside this method + update doc string
     def move_cartesian_frame_linear_interpolation(self, abs_frame, speed):
-        """ Linear interpolation of frame using SLERP.
-            
-            :param abs_frame: A list of [X Y Z Roll Pitch Yaw] OR a tfx.canonical.CanonicalTransform class 
+        """ Linear interpolation of frame using SLERP. We use the SLERP function under the tfx class.
+            This is a wrapper function that calls on move_cartesian_frame with interpolate = False
+
+            :param abs_frame: A tfx.canonical.CanonicalTransform class 
             :param Speed: Should be a (float) type -> Implements linear slerp interpolation 
         """
-        self.__move_cartesian_SLERP(abs_frame, speed)
+
+        if not isinstance(abs_frame, tfx.canonical.CanonicalTransform):
+            raise Exception("Type error: abs_frame should be a tfx.canonical.CanonicalTransform object")
+        elif not speed > 0:
+            raise Exception("Speed should be positive")
+
+        interval = 0.0001   # 1 step per X m of distance
+        start_vect = self.get_current_cartesian_position()
+        end_vect = abs_frame
+        displacement = np.array(end_vect.position - start_vect.position)    # Displacement vector     
+        tinterval = max(int(np.linalg.norm(displacement)/ interval), 50)    # Total interval present between start and end poses
+        # DONE: use i not ii
+        for i in range(tinterval):
+            mid_pose = start_vect.interpolate(end_vect, (i +1.0)/ tinterval)   # SLERP interpolation from tfx function
+            # print mid_pose
+            self.move_cartesian_frame(mid_pose, interpolate=False)
+            Tval = self.__get_time_interval(interval, speed)
+            time.sleep(Tval)
+        
         rospy.loginfo(rospy.get_caller_id() + ' -> completing absolute move cartesian SLERP')
 
-
+    #DONE: Remove
     def __frame_to_tfxPose(self, frame):
         """ Function converts a PyKDL Frame object to a tfx object """
         """ We convert a PyKDL.Frame object to a ROS posemath object and then reconvert it to a tfx.canonical.CanonicalTransform object """
 
         """:returns: tfx pose """
         rosMsg = posemath.toMsg(frame)
-        return tfx.canonical.transform(rosMsg)
-
-    # TODO: this method shouldn't be removed
-    def __tfx_to_list(self, tfx_frame):
-        """ Function converts a tfx.canonical.CanonicalTransform object to a List"""
-
-        """:returns: List of [X,Y,Z,Roll,Pitch,Yaw] """
-        Quat = tfx_frame.quaternion;    Pos = tfx_frame.position;
-        [R,P,Y] = Rotation.Quaternion(Quat.x, Quat.y, Quat.z, Quat.w).GetRPY();
-        [X,Y,Z] = [Pos.x, Pos.y, Pos.z]
-        return [X,Y,Z,R,P,Y]
-
-    def __tfx_to_frame(self, tfx_frame):
-        """ Function converts a tfx.canonical.CanonicalTransform object to a PyKDL.Frame object"""
-        """ We convert a tfx.canonical.CanonicalTransform object to a ROS posemath object and then reconvert it to a PyKDL.Frame object """
-
-        """:returns: PyKDL.Frame type"""
-        return posemath.fromMsg(tfx_frame)
-
-
-    # TODO: move this code into the method that calls it
-    def __move_cartesian_SLERP(self, abs_frame, speed):
-        """ To implement SLERP interpolation from current position to specified position"""
-        """ This is a wrapper function around move_cartesian_frame with interpolate = False"""
-
-        """:returns: None type"""
-        interval = 0.0001        # 1 step per X m of distance
-
-        start_pose = self.get_current_cartesian_position()
-
-        # TODO: don't convert to list
-        start_vect = [start_pose.position.x, start_pose.position.y, start_pose.position.z,
-                      start_pose.tb_angles.roll_rad, start_pose.tb_angles.pitch_rad, start_pose.tb_angles.yaw_rad]
-
-        end_vect = [abs_frame.position.x, abs_frame.position.y, abs_frame.position.z,
-                    abs_frame.tb_angles.roll_rad, abs_frame.tb_angles.pitch_rad, abs_frame.tb_angles.yaw_rad]
-
-        # TODO: make sure there min and max values for your Tinterval
-        displacement = np.array(end_vect[:3]) - np.array(start_vect[:3])                       # Displacement vector
-        
-        # TODO: don't start variable names with capital letters and use underscore notation for variable names
-        # TODO: check pep8 style guide: https://www.python.org/dev/peps/pep-0008/
-        Tinterval = int(np.linalg.norm(displacement) /interval)               # Total interval present between start and end poses
-
-        # TODO: use i not ii
-        for ii in range(Tinterval):
-            track = linear_pose_interp(start_vect, end_vect, (ii +1.0)/Tinterval)
-            lin = track['lin'];     quat = track['rot'];     # In the form [w x y z]
-            vect = Vector(lin[0], lin[1], lin[2])
-            rot = Rotation.Quaternion(quat[1], quat[2], quat[3], quat[0])  # function accepts the form (x, y, z, w)
-            frame = Frame(rot, vect)    
-            self.move_cartesian_frame(frame, interpolate = False)
-
-            Tval = self.__get_time_interval(interval, speed)
-            time.sleep(Tval)
-        return 
+        return tfx.pose(rosMsg) 
 
     def __move_cartesian_direct(self, end_frame):
         """Move the robot to the end position by passing the trajectory generator.
@@ -638,7 +599,7 @@ class robot:
         :rtype: Bool"""
         rospy.loginfo(rospy.get_caller_id() + ' -> starting move cartesian direct')
         # set in position cartesian mode
-        end_position = posemath.toMsg(end_frame)
+        end_position = end_frame.msg.Pose()
         if (not self.__dvrk_set_state('DVRK_POSITION_CARTESIAN')):
             return False
         # go to that position directly
@@ -654,7 +615,7 @@ class robot:
         :rtype: Bool"""
         rospy.loginfo(rospy.get_caller_id() + ' -> starting move cartesian goal')
         # set in position cartesian mode
-        end_position= posemath.toMsg(end_frame)
+        end_position = end_frame.msg.Pose()
         if (not self.__dvrk_set_state('DVRK_POSITION_GOAL_CARTESIAN')):
             return False
         # go to that position by goal

@@ -204,6 +204,39 @@ class robot:
             return False
         return True
 
+    xlow = 0.02; xhigh = 0.02; ylow=0.02; yhigh=0.02; zlow = 0.01; zhigh=0.15; bound=True
+    @classmethod
+    def set_workspace_constraints(cls, xlow=0.02, xhigh=0.02, ylow=0.02, yhigh=0.02, zlow=0.01, zhigh=0.15, bound=True):
+        """Defines a box workspace constraint for PSM1 & PSM2
+        :params: The bounds of the box """
+        cls.xlow   = xlow
+        cls.xhigh  = xhigh
+        cls.ylow   = ylow
+        cls.yhigh  = yhigh
+        cls.zhigh  = min(zhigh, 0.15)    # enforces depth constraint     
+        return
+
+    def __check_workspace(self, pose):
+        """Throws an exception of the robot is told to go beyond workspace limits
+        :param pose: Commanded pose as tfx.canonical.CanonicalTransform """
+        if self.__robot_name == "PSM1":
+            lim_x   = [-self.xlow, self.xhigh]
+            lim_y   = [-self.ylow, self.yhigh]
+            lim_z   = [max(0,self.zlow), self.zhigh]
+        elif self.__robot_name == "PSM2":
+            lim_x   = [-self.xhigh, self.xlow]
+            lim_y   = [-self.yhigh, self.ylow]
+            lim_z   = [max(0,self.zlow), self.zhigh]  
+
+        # Gets the robot's coordinates in workspace
+        X = pose.msg.Pose().position.x; Y = pose.msg.Pose().position.y; Z = pose.msg.Pose().position.z; 
+        if min(lim_x) <= X <= max(lim_x) and min(lim_y) <= Y <= max(lim_y) and min(lim_z) <= -Z <= max(lim_z):
+            # Allow the pose through
+            return True
+        else:
+            print("Enforce workspace limits. Position is beyond allowable limit")
+            raise Exception("Workspace_limit")
+
     def home(self):
         """This method will provide power to the robot as will as home
         the robot. This method requries the robot name."""
@@ -509,6 +542,8 @@ class robot:
         # Checks for abs_frame as a tfx pose
         if not isinstance(abs_frame, tfx.canonical.CanonicalTransform):
             raise Exception("abs_frame must be a tfx.canonical.CanonicalTransform object")
+        self.__check_workspace(abs_frame)
+
             # move based on value of interpolate
         if (interpolate):
             self.__move_cartesian_goal(abs_frame)
@@ -529,7 +564,8 @@ class robot:
         elif not speed > 0:
             raise Exception("Speed should be positive")
 
-        interval = 0.0001   # 1 step per X m of distance
+        self.__check_workspace(abs_frame)   # Enforce workspace limit for respective arm
+        interval = 0.0001                   # 1 step per X m of distance
         start_vect = self.get_current_cartesian_position()
         end_vect = abs_frame
         displacement = np.array(end_vect.position - start_vect.position)    # Displacement vector     
